@@ -1,0 +1,23 @@
+# Compiled class files
+*.class
+
+# Bytecode
+*.jar
+
+# Libraries (dependencies)
+/lib/
+
+# IntelliJ IDEA files
+.idea/
+
+# Eclipse files
+.classpath
+.project
+.settings/
+
+# Build output
+/target/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
