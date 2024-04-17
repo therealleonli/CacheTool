@@ -1,14 +1,12 @@
 package cache;
 
-import java.util.concurrent.TimeUnit;
-
 public class Main {
 
 	public static void main(String[] args) {
 		// Test-cases for the cache is defined and called in the main() function for demonstration purposes
-		testBasicOperations();
+//		testBasicOperations();
 //		testMaxSizeEviction();
-//		testExpiration();
+		testExpiration();
 
 	}
 
