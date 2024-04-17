@@ -3,11 +3,10 @@ package cache;
 public class Main {
 
 	public static void main(String[] args) {
-		// Test-cases for the cache is defined and called in the main() function for demonstration purposes
-//		testBasicOperations();
-//		testMaxSizeEviction();
+		// Test-cases for the cache in the main() for demonstration purposes
+		testBasicOperations();
+		testMaxSizeEviction();
 		testExpiration();
-
 	}
 
 	private static void testBasicOperations() {
@@ -18,7 +17,6 @@ public class Main {
 		System.out.println("Update Key: " + "Key3");
 		LFUCache.printCacheAndFrequenciesEntries();
 		sleepSeconds(5);
-		LFUCache.cancelExpirationTask();
 		System.out.println("\n\n");
 	}
 
@@ -26,17 +24,22 @@ public class Main {
 		System.out.println("Test LFU Evictions: ");
 		LFUCache<String, Integer> LFUCache = createAndPopulateCache();
 		LFUCache.printCacheAndFrequenciesEntries();
+		LFUCache.get("Key1");
+		LFUCache.get("Key1");
+		LFUCache.get("Key2");
+		LFUCache.get("Key4");
+		LFUCache.get("Key4");
+		System.out.println("Get operation. Key1, Key1, Key2, Key4, Key4");
 		System.out.println("\nAdds and updates entries + frequencies. Passes max size.");
 		LFUCache.put("Key3", 6);
 		LFUCache.put("Key2", 7);
 		LFUCache.put("Key2", 9);
-		LFUCache.put("Key5", 1);
-		LFUCache.put("Key4", 8);
-		System.out.println("Get operation. Key2");
-		LFUCache.get("Key2");
 		LFUCache.printCacheAndFrequenciesEntries();
-		sleepSeconds(6);
-		LFUCache.cancelExpirationTask();
+		LFUCache.put("Key5", 1);
+		LFUCache.printCacheAndFrequenciesEntries();
+		LFUCache.get("Key2");
+		System.out.println("Get operation. Key2");
+		LFUCache.printCacheAndFrequenciesEntries();
 		System.out.println("\n\n");
 	}
 
@@ -47,12 +50,22 @@ public class Main {
 		LFUCache.put("Key1", 1);
 		LFUCache.put("Key2", 2);
 		sleepSeconds(2);
-		LFUCache.cancelExpirationTask();	
 		LFUCache.put("Key5", 5);
 		LFUCache.put("Key6", 6);
-		LFUCache.restartExpirationTask();
-		sleepSeconds(5);
-		LFUCache.cancelExpirationTask();
+		LFUCache.expireEntries();
+		System.out.println("Get operation. Key5, Key5, Key6");
+		LFUCache.get("Key5");
+		LFUCache.get("Key5");
+		LFUCache.get("Key6");
+		sleepSeconds(2);
+		LFUCache.expireEntries();
+		LFUCache.put("Key7", 7);
+		System.out.println("Get operation. Key7, Key7, Key7");
+		LFUCache.get("Key7");
+		LFUCache.get("Key7");
+		LFUCache.get("Key7");
+		sleepSeconds(2);
+		LFUCache.expireEntries();
 		System.out.println("Finished");
 		System.out.println("\n\n");
 	}

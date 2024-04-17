@@ -18,8 +18,6 @@ public class LFUCache<K, V> {
 	private int cacheSize;
 	private int minf;
 	private long ttl;
-	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-	private long expirationTimeMillis = TimeUnit.SECONDS.toMillis(1); // Runs every second
 
 	public LFUCache(int size, long ttl) {
 		if (size <= 0 || ttl <= 0) {
@@ -30,7 +28,6 @@ public class LFUCache<K, V> {
 		this.cacheSize = size;
 		this.minf = 0;
 		this.ttl = ttl;
-		this.scheduler.scheduleAtFixedRate(this::expireEntries, 1, expirationTimeMillis, TimeUnit.MILLISECONDS);
 		System.out.println("LFU Cache initialized. Size: " + cacheSize);
 	}
 
@@ -62,6 +59,9 @@ public class LFUCache<K, V> {
 
 	public void put(K key, V value) {
 		System.out.println("Put operation. " + key + " : " + value);
+		if (key == null || value == null) {
+			throw new IllegalArgumentException("Key and value cannot be null.");
+		}
 		if (cacheSize <= 0)
 			return;
 		Pair<Integer, V> frequencyAndValue = cache.get(key);
@@ -114,44 +114,51 @@ public class LFUCache<K, V> {
 		return cacheSize == cache.size();
 	}
 
-	private void expireEntries() {
+	public void expireEntries() {
 		Iterator<Entry<K, Pair<Integer, V>>> iterator = cache.entrySet().iterator();
 		System.out.println("\nRunning automatic entries removal - removes entries if expired ...");
-		int tempMinF = Integer.MAX_VALUE;
+		int lowestExpiredFrequency = Integer.MAX_VALUE;
 		while (iterator.hasNext()) {
 			Entry<K, Pair<Integer, V>> oldestEntry = iterator.next();
-			if (isExpired(oldestEntry)) {
-				int frequency = oldestEntry.getValue().getFrequency();
-				tempMinF = Math.min(tempMinF, frequency);
-				Set<K> keys = frequencies.get(frequency);
-				K keyToRemove = oldestEntry.getKey();
-				iterator.remove();
-				cache.remove(keyToRemove);
-				keys.remove(keyToRemove);
-				if (keys.isEmpty())
-					frequencies.remove(frequency);
-				if (cache.isEmpty() && frequencies.isEmpty())
-					minf = 0;
-				System.out.println(
-						"Removed expired entry: " + oldestEntry.getKey() + ":" + oldestEntry.getValue().getValue());
-			} else {
+			if (!isExpired(oldestEntry)) {
 				break;
 			}
+			lowestExpiredFrequency = processExpiredEntry(iterator, oldestEntry, lowestExpiredFrequency);
 		}
-		// Find minf again if removed last entry of minf, downside to not using PQ
-		if (tempMinF <= minf) {
-			Set<K> keys = frequencies.get(tempMinF);
-			if (keys.isEmpty()) {
-				for (Map.Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
-					int frequency = entry.getKey();
-					if (frequency < minf) {
-						minf = frequency;
-					}
+		updateMinFrequency(lowestExpiredFrequency);
+		printCacheAndFrequenciesEntries();
+	}
+
+	private int processExpiredEntry(Iterator<Entry<K, Pair<Integer, V>>> iterator,
+			Entry<K, Pair<Integer, V>> oldestEntry, int lowestExpiredFrequency) {
+		int frequency = oldestEntry.getValue().getFrequency();
+		lowestExpiredFrequency = Math.min(lowestExpiredFrequency, frequency);
+		Set<K> keys = frequencies.get(frequency);
+		K keyToRemove = oldestEntry.getKey();
+		// Remove entry from iterator, cache, frequencies
+		iterator.remove();
+		cache.remove(keyToRemove);
+		keys.remove(keyToRemove);
+		if (keys.isEmpty())
+			frequencies.remove(frequency);
+		if (cache.isEmpty() && frequencies.isEmpty())
+			minf = 0;
+		System.out.println("Removed expired entry: " + oldestEntry.getKey() + ":" + oldestEntry.getValue().getValue());
+		return lowestExpiredFrequency;
+	}
+
+	private void updateMinFrequency(int lowestExpiredFrequency) {
+		if (lowestExpiredFrequency <= minf) {
+			// If last entry with minf removed from LRU, find new minf
+			int newLowest = Integer.MAX_VALUE;
+			for (Map.Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
+				int frequency = entry.getKey();
+				if (frequency < newLowest) {
+					newLowest = frequency;
 				}
 			}
+			minf = newLowest;
 		}
-		printCacheAndFrequenciesEntries();
-
 	}
 
 	private boolean isExpired(Entry<K, Pair<Integer, V>> oldestEntry) {
@@ -178,20 +185,14 @@ public class LFUCache<K, V> {
 		}
 	}
 
-	public void printCacheAndFrequenciesEntries() {
-		printCacheEntries();
-		printFrequenciesEntries();
+	public void printMinf() {
 		System.out.println("minf:" + minf);
 	}
 
-	public void cancelExpirationTask() {
-		scheduler.shutdown();
-	}
-
-	public void restartExpirationTask() {
-		if (scheduler.isShutdown() || scheduler.isTerminated())
-			scheduler = Executors.newScheduledThreadPool(1);
-		scheduler.scheduleAtFixedRate(this::expireEntries, 0, expirationTimeMillis, TimeUnit.MILLISECONDS);
+	public void printCacheAndFrequenciesEntries() {
+		printCacheEntries();
+		printFrequenciesEntries();
+		printMinf();
 	}
 
 }
