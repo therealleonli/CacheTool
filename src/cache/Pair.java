@@ -1,53 +1,41 @@
 package cache;
 
-public class Pair<K> {
-	K key;
-	int frequency;
-	long lastAccessTime;
-	private long creationTime;
+import java.util.Date;
 
-	public Pair(K key, int frequency) {
-		this.key = key;
+public class Pair<K, V> {
+	K frequency;
+	V value;
+	private Date creationTime;
+
+	public Pair(K frequency, V value) {
 		this.frequency = frequency;
-		this.lastAccessTime = System.currentTimeMillis();
-		this.creationTime = System.currentTimeMillis();
+		this.value = value;
+		this.creationTime = new Date();
 	}
 
-	public void update() {
-		this.frequency += 1;
-		this.lastAccessTime = System.currentTimeMillis();
-	}
-
-	public K getKey() {
-		return key;
-	}
-
-	public void setKey(K key) {
-		this.key = key;
-	}
-
-	public int getFrequency() {
+	public K getFrequency() {
 		return frequency;
 	}
 
-	public void setFrequency(int frequency) {
+	public void setFrequency(K frequency) {
 		this.frequency = frequency;
 	}
 
-	public long getLastAccessTime() {
-		return lastAccessTime;
+	public V getValue() {
+		return value;
 	}
 
-	public void setLastAccessTime(long lastAccessTime) {
-		this.lastAccessTime = lastAccessTime;
+	public void setValue(V value) {
+		this.value = value;
 	}
-
-	public long getCreationTime() {
+	
+	public Date getCreationTime() {
 		return creationTime;
 	}
 
-	public void setCreationTime(long creationTime) {
+	public void setCreationTime(Date creationTime) {
 		this.creationTime = creationTime;
 	}
 
+	
 }

@@ -1,162 +1,197 @@
 package cache;
 
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class LFUCache<K, V> {
-	int cacheSize;
-	Map<K, V> cache;
-	PriorityQueue<Pair<K>> minHeap;
-	private final ExecutorService executor = Executors.newCachedThreadPool();
-	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-	private final long expirationTimeMillis = TimeUnit.SECONDS.toMillis(5);
+	private Map<K, Pair<Integer, V>> cache; // key, <frequency, value>
+	private Map<Integer, LinkedHashSet<K>> frequencies; // frequency, keys
+	private int cacheSize;
+	private int minf;
+	private long ttl;
+	private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+	private long expirationTimeMillis = TimeUnit.SECONDS.toMillis(1); // Runs every second
 
-	public LFUCache(int size) {
+	public LFUCache(int size, long ttl) {
+		if (size <= 0 || ttl <= 0) {
+			throw new IllegalArgumentException("Cache size and TTL must be positive.");
+		}
+		this.cache = new LinkedHashMap<>();
+		this.frequencies = new HashMap<>();
 		this.cacheSize = size;
-		this.cache = new HashMap<>();
-		this.minHeap = new PriorityQueue<>((a, b) -> a.frequency - b.frequency);
-		// Schedule method, init delay, interval, unit
-		scheduler.scheduleAtFixedRate(this::expireEntries, expirationTimeMillis, expirationTimeMillis,
-				TimeUnit.MILLISECONDS);
-		System.out.println("LFU Cache initialized wiht size: " + cacheSize);
+		this.minf = 0;
+		this.ttl = ttl;
+		this.scheduler.scheduleAtFixedRate(this::expireEntries, 1, expirationTimeMillis, TimeUnit.MILLISECONDS);
+		System.out.println("LFU Cache initialized. Size: " + cacheSize);
 	}
 
-	public synchronized void cancelExpirationTask() {
-		scheduler.shutdown();
+	public V get(K key) {
+		Pair<Integer, V> cacheEntry = cache.get(key);
+		if (cacheEntry == null)
+			return null;
+
+		// Remove key in key set of current frequency
+		int frequency = cacheEntry.getFrequency();
+		Set<K> keys = frequencies.get(frequency);
+		keys.remove(key);
+		// If key set empty with no remaining keys, remove the empty set
+		if (keys.isEmpty()) {
+			frequencies.remove(frequency);
+			// If entry and key set removed was minf, increase minf to match current
+			if (minf == frequency) {
+				++minf;
+			}
+		}
+
+		// Update new frequency in frequencies and cache
+		int newFrequency = frequency + 1;
+		frequencies.computeIfAbsent(newFrequency, k -> new LinkedHashSet<>()).add(key);
+		cacheEntry.setFrequency(newFrequency);
+
+		return cacheEntry.getValue();
 	}
 
-	private synchronized void expireEntries() {
-		// Remove expired entry in map
-		synchronized (cache) {
-			minHeap.forEach(pair -> {
-				if (isEntryExpired(pair)) {
-					cache.remove(pair.getKey());
-				}
-			});
+	public void put(K key, V value) {
+		System.out.println("Put operation. " + key + " : " + value);
+		if (cacheSize <= 0)
+			return;
+		Pair<Integer, V> frequencyAndValue = cache.get(key);
+		if (frequencyAndValue != null) {
+			// Entry exists, update value and increase frequency
+			updateExistingEntry(key, frequencyAndValue, value);
+			return;
 		}
-		// Remove expired entry in pq
-		synchronized (minHeap) {
-			minHeap.removeIf(pair -> {
-				boolean expired = isEntryExpired(pair);
-				return expired;
-			});
-			System.out.println("Expired cache entries removed. Remaining entries: "
-					+ (cache.isEmpty() ? "Cache is empty." : cache.entrySet()));
+		if (cacheIsFull()) {
+			removeLFUEntry();
+		}
+		minf = 1; // Set min frequency to 1 for new entry
+		insert(key, 1, value);
+	}
+
+	private void insert(K key, int frequency, V value) {
+		if (key == null || value == null) {
+			throw new IllegalArgumentException("Key and value cannot be null.");
+		}
+		// Insert new entry in cache
+		Pair<Integer, V> newEntry = new Pair<>(frequency, value);
+		cache.put(key, newEntry);
+		// Update frequencies map
+		LinkedHashSet<K> keys = frequencies.get(frequency);
+		if (keys == null) {
+			keys = new LinkedHashSet<>();
+			frequencies.put(frequency, keys);
+		}
+		keys.add(key);
+	}
+
+	private void updateExistingEntry(K key, Pair<Integer, V> frequencyAndValue, V value) {
+		cache.put(key, new Pair<>(frequencyAndValue.getFrequency(), value));
+		get(key); // Update frequency, +1
+	}
+
+	private void removeLFUEntry() {
+		// Cache is full, remove LFU entry
+		Set<K> keys = frequencies.get(minf);
+		K keyToDelete = keys.iterator().next();
+		cache.remove(keyToDelete);
+		keys.remove(keyToDelete);
+		System.out.println("Removed: " + keyToDelete);
+		if (keys.isEmpty()) {
+			frequencies.remove(minf);
 		}
 	}
 
-	private boolean isEntryExpired(Pair<K> pair) {
-		return (System.currentTimeMillis() - pair.getCreationTime()) > expirationTimeMillis;
+	private boolean cacheIsFull() {
+		return cacheSize == cache.size();
 	}
 
-	public synchronized void insert(K key, V value) {
-		if (cache.size() == cacheSize) {
-			evictEntry();
+	private void expireEntries() {
+		Iterator<Entry<K, Pair<Integer, V>>> iterator = cache.entrySet().iterator();
+		System.out.println("\nRunning automatic entries removal - removes entries if expired ...");
+		int tempMinF = Integer.MAX_VALUE;
+		while (iterator.hasNext()) {
+			Entry<K, Pair<Integer, V>> oldestEntry = iterator.next();
+			if (isExpired(oldestEntry)) {
+				int frequency = oldestEntry.getValue().getFrequency();
+				tempMinF = Math.min(tempMinF, frequency);
+				Set<K> keys = frequencies.get(frequency);
+				K keyToRemove = oldestEntry.getKey();
+				iterator.remove();
+				cache.remove(keyToRemove);
+				keys.remove(keyToRemove);
+				if (keys.isEmpty())
+					frequencies.remove(frequency);
+				if (cache.isEmpty() && frequencies.isEmpty())
+					minf = 0;
+				System.out.println(
+						"Removed expired entry: " + oldestEntry.getKey() + ":" + oldestEntry.getValue().getValue());
+			} else {
+				break;
+			}
 		}
-		cache.put(key, value);
-		Pair<K> newPair = new Pair<>(key, 1);
-		minHeap.offer(newPair);
-		System.out.println("Cache block inserted: " + key + " , " + value);
-	}
-
-	public synchronized void evictEntry() {
-		if (!minHeap.isEmpty()) {
-			Pair<K> minHeapPair = minHeap.poll();
-			K keyToRemove = minHeapPair.getKey();
-			V valueToRemoved = cache.get(keyToRemove);
-			cache.remove(keyToRemove);
-			System.out.println("Cache block removed:" + keyToRemove + " , " + valueToRemoved);
-		} else {
-			System.out.println("Cache is empty, no entries in minHeap to evict.");
-		}
-	}
-
-	public synchronized void put(K key, V value) {
-		if (key == null) {
-			throw new IllegalArgumentException("Key cannot be null");
-		}
-		if (!cache.containsKey(key)) {
-			insert(key, value);
-		} else {
-			update(key, value);
-		}
-	}
-
-	public synchronized void update(K key, V value) {
-		if (key == null) {
-			throw new IllegalArgumentException("Key cannot be null");
-		}
-
-		if (cache.containsKey(key)) {
-			// Update map
-			cache.put(key, value);
-
-			// Update pq
-			Pair<K> updatedPair = null;
-			for (Pair<K> pair : minHeap) {
-				if (pair.getKey().equals(key)) {
-					pair.update();
-					updatedPair = pair;
-					break;
+		// Find minf again if removed last entry of minf, downside to not using PQ
+		if (tempMinF <= minf) {
+			Set<K> keys = frequencies.get(tempMinF);
+			if (keys.isEmpty()) {
+				for (Map.Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
+					int frequency = entry.getKey();
+					if (frequency < minf) {
+						minf = frequency;
+					}
 				}
 			}
-			minHeap.remove(updatedPair);
-			minHeap.offer(updatedPair);
-			System.out.println("Cache block updated key: " + key + ", value: " + value + ", freq: "
-					+ updatedPair.getFrequency() + ", create: " + updatedPair.getCreationTime());
 		}
+		printCacheAndFrequenciesEntries();
+
+	}
+
+	private boolean isExpired(Entry<K, Pair<Integer, V>> oldestEntry) {
+		Date now = new Date();
+		long elapsedTimeMillis = now.getTime() - oldestEntry.getValue().getCreationTime().getTime();
+		return elapsedTimeMillis > ttl;
 	}
 
 	public void printCacheEntries() {
 		System.out.println("Cache entries:");
-		for (Map.Entry<K, V> entry : cache.entrySet()) {
-			System.out.println(entry.getKey() + " : " + entry.getValue());
+		for (Entry<K, Pair<Integer, V>> entry : cache.entrySet()) {
+			K key = entry.getKey();
+			Pair<Integer, V> pair = entry.getValue();
+			System.out.println(key + " : frequency = " + pair.getFrequency() + ", value = " + pair.getValue());
 		}
 	}
 
-	public void printPriorityQueueEntries() {
-		System.out.println("Priority queue entries:");
-		for (Pair<K> pair : minHeap) {
-			System.out.println(pair.getKey() + " : freq" + pair.getFrequency());
+	public void printFrequenciesEntries() {
+		System.out.println("Frequencies entries:");
+		for (Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
+			Integer frequency = entry.getKey();
+			LinkedHashSet<K> keys = entry.getValue();
+			System.out.println("Frequency " + frequency + " : " + keys);
 		}
 	}
 
-	public void printCacheAndPriorityQueueEntries() {
+	public void printCacheAndFrequenciesEntries() {
 		printCacheEntries();
-		printPriorityQueueEntries();
+		printFrequenciesEntries();
+		System.out.println("minf:" + minf);
 	}
 
-	public V get(K key) {
-		V value = cache.get(key);	// Allows value to be null
-		executor.submit(() -> {
-			synchronized (this) {
-				try {
-					updateMinHeap(key);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		});
-		return value;
+	public void cancelExpirationTask() {
+		scheduler.shutdown();
 	}
 
-	public synchronized void updateMinHeap(K key) {
-		for (Pair<K> pair : minHeap) {
-			if (pair.getKey().equals(key)) {
-				pair.update();
-				minHeap.remove(pair);
-				minHeap.offer(pair);
-				break;
-			}
-		}
+	public void restartExpirationTask() {
+		if (scheduler.isShutdown() || scheduler.isTerminated())
+			scheduler = Executors.newScheduledThreadPool(1);
+		scheduler.scheduleAtFixedRate(this::expireEntries, 0, expirationTimeMillis, TimeUnit.MILLISECONDS);
 	}
 
 }

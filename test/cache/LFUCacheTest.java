@@ -8,16 +8,16 @@ import org.junit.Test;
 public class LFUCacheTest {
 	private LFUCache<String, Integer> cache;
 
-    @Before
-    public void setUp() {
-        // Create a new cache with a capacity of 3
-        cache = new LFUCache<>(3);
-    }
-
-    @After
-    public void tearDown() {
-        cache.cancelExpirationTask();
-    }
+//    @Before
+//    public void setUp() {
+//        // Create a new cache with a capacity of 3
+//        cache = new LFUCache<>(3);
+//    }
+//
+//    @After
+//    public void tearDown() {
+//        cache.cancelExpirationTask();
+//    }
 
 
 }
