@@ -1,60 +1,73 @@
 package cache;
 
-import java.util.concurrent.TimeUnit;
-
 public class Main {
 
 	public static void main(String[] args) {
-		// Test-cases for the cache is defined and called in the main() function for
-		// demonstration purposes
-		basicOperationsTest();
-
-		evictionTest();
-
-		expirationTest();
-
+		// Test-cases for the cache in the main() for demonstration purposes
+		testBasicOperations();
+		testMaxSizeEviction();
+		testExpiration();
 	}
 
-	private static void basicOperationsTest() {
-		System.out.println("Basic Operations Test:");
+	private static void testBasicOperations() {
+		System.out.println("Test Basic Operations:");
 		LFUCache<String, Integer> LFUCache = createAndPopulateCache();
-		LFUCache.printCacheAndPriorityQueueEntries();
-		System.out.println("Update value");
+		LFUCache.printCacheAndFrequenciesEntries();
 		LFUCache.put("Key3", 5);
-		LFUCache.printCacheAndPriorityQueueEntries();
-		LFUCache.cancelExpirationTask();
-		System.out.println();
+		System.out.println("Update Key: " + "Key3");
+		LFUCache.printCacheAndFrequenciesEntries();
+		sleepSeconds(5);
+		System.out.println("\n\n");
 	}
 
-	private static void evictionTest() {
-		System.out.println("Evicts LFU Test: ");
+	private static void testMaxSizeEviction() {
+		System.out.println("Test LFU Evictions: ");
 		LFUCache<String, Integer> LFUCache = createAndPopulateCache();
+		LFUCache.printCacheAndFrequenciesEntries();
+		LFUCache.get("Key1");
+		LFUCache.get("Key1");
+		LFUCache.get("Key2");
+		LFUCache.get("Key4");
+		LFUCache.get("Key4");
+		System.out.println("Get operation. Key1, Key1, Key2, Key4, Key4");
+		System.out.println("\nAdds and updates entries + frequencies. Passes max size.");
 		LFUCache.put("Key3", 6);
 		LFUCache.put("Key2", 7);
 		LFUCache.put("Key2", 9);
+		LFUCache.printCacheAndFrequenciesEntries();
 		LFUCache.put("Key5", 1);
-		LFUCache.put("Key5", 8);
+		LFUCache.printCacheAndFrequenciesEntries();
 		LFUCache.get("Key2");
-		LFUCache.printCacheAndPriorityQueueEntries();
-		LFUCache.put("Key6", 9);
-		LFUCache.printCacheAndPriorityQueueEntries();
-		LFUCache.cancelExpirationTask();
-		System.out.println();
+		System.out.println("Get operation. Key2");
+		LFUCache.printCacheAndFrequenciesEntries();
+		System.out.println("\n\n");
 	}
 
-	private static void expirationTest() {
-		System.out.println("Expiration Test: ");
+	private static void testExpiration() {
+		System.out.println("Test Expiration: ");
 		System.out.println("Scheduled Executor Service running periodically...");
-		LFUCache<String, Integer> LFUCache = createAndPopulateCache();
-		sleepSeconds(3);
+		LFUCache<String, Integer> LFUCache = new LFUCache<>(4, 3000);
+		LFUCache.put("Key1", 1);
+		LFUCache.put("Key2", 2);
+		sleepSeconds(2);
 		LFUCache.put("Key5", 5);
 		LFUCache.put("Key6", 6);
-		sleepSeconds(3);
+		LFUCache.expireEntries();
+		System.out.println("Get operation. Key5, Key5, Key6");
+		LFUCache.get("Key5");
+		LFUCache.get("Key5");
+		LFUCache.get("Key6");
+		sleepSeconds(2);
+		LFUCache.expireEntries();
 		LFUCache.put("Key7", 7);
-		sleepSeconds(10);
+		System.out.println("Get operation. Key7, Key7, Key7");
+		LFUCache.get("Key7");
+		LFUCache.get("Key7");
+		LFUCache.get("Key7");
+		sleepSeconds(2);
+		LFUCache.expireEntries();
 		System.out.println("Finished");
-		LFUCache.cancelExpirationTask();
-		System.out.println();
+		System.out.println("\n\n");
 	}
 
 	private static void sleepSeconds(int seconds) {
@@ -67,7 +80,7 @@ public class Main {
 	}
 
 	private static LFUCache<String, Integer> createAndPopulateCache() {
-		LFUCache<String, Integer> LFUCache = new LFUCache<>(4);
+		LFUCache<String, Integer> LFUCache = new LFUCache<>(4, 3000);
 		LFUCache.put("Key1", 1);
 		LFUCache.put("Key2", 2);
 		LFUCache.put("Key3", 3);
