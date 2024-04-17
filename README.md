@@ -7,7 +7,7 @@
 
 Implemented the freqHM cacheLHM version because of the trade-offs listed below.
 
-##Options:
+## Options:
 
 ### freqHM cacheLHM - LRU operation worse case
 - GET, rm & add key to new freq leve in freqHM O(1)
