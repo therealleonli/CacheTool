@@ -1,6 +1,7 @@
 package cache;
 
 import java.util.Date;
+import java.util.Objects;
 
 public class Pair<K, V> {
 	K frequency;
@@ -37,5 +38,22 @@ public class Pair<K, V> {
 		this.creationTime = creationTime;
 	}
 
+	@Override
+	public int hashCode() {
+		return Objects.hash(creationTime, frequency, value);
+	}
 	
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Pair other = (Pair) obj;
+		return Objects.equals(creationTime, other.creationTime) && Objects.equals(frequency, other.frequency)
+				&& Objects.equals(value, other.value);
+	}
+
 }

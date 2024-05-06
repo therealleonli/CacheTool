@@ -18,8 +18,8 @@ Implemented the freqHM cacheLHM version because of the trade-offs listed below.
 	else O(1) + iterating items in LHM LRU
 
 ### freqPQ cacheHM - LRU operation worse case
-- GET has to find and update(rm,add freq), offer element O(n log n) to ensure count and consistency
-- PUT existing entry, has to to find and update, offer element O(n log n) to ensure count and consistency
+- GET has to find and update(rm,add freq), offer element to ensure count and consistency O(n)
+- PUT existing entry, has to to find and update, offer element to ensure count and consistency O(n)
 - PUT new entry, add item, offer O(log n) to ensure count and consistency
 - PUT new entry and pop LFU, O(1) to ensure count and consistency
 - Remove LRU has to find and rm element O(n)

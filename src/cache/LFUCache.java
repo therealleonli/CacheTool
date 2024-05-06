@@ -2,19 +2,17 @@ package cache;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class LFUCache<K, V> {
 	private Map<K, Pair<Integer, V>> cache; // key, <frequency, value>
-	private Map<Integer, LinkedHashSet<K>> frequencies; // frequency, keys
+	private Map<Integer, HashSet<K>> frequencies; // frequency, keys
 	private int cacheSize;
 	private int minf;
 	private long ttl;
@@ -85,7 +83,7 @@ public class LFUCache<K, V> {
 		Pair<Integer, V> newEntry = new Pair<>(frequency, value);
 		cache.put(key, newEntry);
 		// Update frequencies map
-		LinkedHashSet<K> keys = frequencies.get(frequency);
+		HashSet<K> keys = frequencies.get(frequency);
 		if (keys == null) {
 			keys = new LinkedHashSet<>();
 			frequencies.put(frequency, keys);
@@ -151,7 +149,7 @@ public class LFUCache<K, V> {
 		if (lowestExpiredFrequency <= minf) {
 			// If last entry with minf removed from LRU, find new minf
 			int newLowest = Integer.MAX_VALUE;
-			for (Map.Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
+			for (Entry<Integer, HashSet<K>> entry : frequencies.entrySet()) {
 				int frequency = entry.getKey();
 				if (frequency < newLowest) {
 					newLowest = frequency;
@@ -178,9 +176,9 @@ public class LFUCache<K, V> {
 
 	public void printFrequenciesEntries() {
 		System.out.println("Frequencies entries:");
-		for (Entry<Integer, LinkedHashSet<K>> entry : frequencies.entrySet()) {
+		for (Entry<Integer, HashSet<K>> entry : frequencies.entrySet()) {
 			Integer frequency = entry.getKey();
-			LinkedHashSet<K> keys = entry.getValue();
+			HashSet<K> keys = entry.getValue();
 			System.out.println("Frequency " + frequency + " : " + keys);
 		}
 	}
